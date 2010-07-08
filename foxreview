@@ -1,0 +1,555 @@
+#!/bin/sh
+#
+# DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
+#
+# foxreview
+# 
+# Copyright  (C) 2009~2010 Foxreview <foxreview@googlecode.com> All Rights Reserved.
+#
+#
+# This script is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This script is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Library General Public
+# License along with this library; if not, write to the
+# Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+# Boston, MA 02111-1307, USA, or look at the website 
+# http://www.gnu.org/copyleft/gpl.html
+
+
+
+
+########################################################################
+##  foxreview version info                                            ##
+########################################################################
+FOXREVIEW_VERSION_NUMBER='0.1'
+
+########################################################################
+##  help info                                                         ##
+########################################################################
+function fhelp()
+{
+    echo "---------------------------------------------------------------------------------------------"
+    echo "foxreview $FOXREVIEW_VERSION_NUMBER            "
+    echo "                                               "
+    echo "Usage: foxreview [-l] [-o] [-n] [-s] [-v] [-h] <output_dir> "
+    echo "[Options]: "
+    echo "          -l: Create HTML files into html dir"
+    echo "         -o: Copy Old file to old_src dir"
+    echo "         -n: Copy New file to new_src dir"
+    echo "         -s: Show CONFIG_DIR and OUTPUT_DIR "
+    echo "         -v: Version Info"
+    echo "         -h: Help "
+    echo "         (option -l,-o,-n can be combined like -lo, -lon, -no)"
+    echo "<output_dir>: Directory name to store output from foxreview command"
+    echo "         Naming rule: <ProjectVersionNum_BugNum>  "
+    echo "         >ProjectVersionNum:  such as Forxreview0.1"
+    echo "         >BugNum : such as bug00001."
+    echo " "
+    echo "Example:  "
+    echo "         foxreview -l   R0.1_bug00001  "
+    echo "         foxreview -lon R0.1_bug00001  "
+    echo "Limitation:                 "
+    echo "          >Only support dynamic view"
+    echo "          >Prepare for foxreview.config in CONFIG_DIR in advance."
+    echo "Report:"
+    echo "        Report bugs to the author <foxreview@googlecode.com>"
+    echo "---------------------------------------------------------------------------------------------"
+}
+
+########################################################################
+## check if exist the same name file in the given directory           ##
+########################################################################
+check_file()
+{
+    local OPERATOR=$1
+    local FILE=$2
+    local DIR_PATH=$3
+    local FILENAME=$4
+      
+    local p=1
+    local n=1
+     
+    #locate the same name file 
+    while (($n <= 100))
+    do
+        #look up the newest same name file
+        if [ -f "$DIR_PATH/$FILENAME.$p" ];then
+            p=`expr $n + 1`
+        else
+            #echo "exist $DIR_PATH/$FILENAME.$p"
+            break
+        fi
+     
+        n=$(($n+1))
+       
+    done
+
+    #execute operation 
+    $OPERATOR -f $FILE $DIR_PATH/$FILENAME.$n
+
+}
+
+########################################################################
+## move html file to the given directory                              ##
+########################################################################
+move_html()
+{
+    local FILENAME=$1
+    local TMPFILE=$1  
+    local DIR_PATH=$2
+    local p=1
+    local n=1
+     
+    #locate the same name file 
+    while (($n <= 100))
+    do
+        #look up the newest same name file
+       if [ -f "$DIR_PATH/$FILENAME.$p.html" ];then
+            p=`expr $n + 1`
+        else
+            #echo "exist $DIR_PATH/$FILENAME.$p"
+            break
+        fi
+        n=$(($n+1))
+    done
+    
+    #move html to destination dir   
+    mv $TMPFILE.html $_HTML_PATH/$FILENAME.$n.html
+
+}
+
+########################################################################
+## deal with config file and output html file                         ##
+########################################################################
+function read_line()
+{
+    #local variable
+    local i=1
+    local j=
+    local LENGTH=
+    local _OLD_FILE=
+    local _NEW_FILE=
+    local _OLD_FILENAME=
+    local _NEW_FILENAME=
+    local HTML_MODE=4
+    local OLD_MODE=2
+    local NEW_MODE=1
+    local OUT_MODE=$1
+    local HIX_NUMBER=$2
+    local PATCH_PATH=$OUTPUT_DIR/patch
+    local BAKCONFIG_PATH=$PATCH_PATH/$HIX_NUMBER
+    local _HTML_PATH=$PATCH_PATH/$HIX_NUMBER/html
+    local _OLD_PATH=$PATCH_PATH/$HIX_NUMBER/old_src
+    local _NEW_PATH=$PATCH_PATH/$HIX_NUMBER/new_src
+    local DIFF=diff2html_binary
+    local CONFIG=$CONFIG_DIR/foxreview.config
+    local TMPCONFIGFOREMPTY=$OUTPUT_DIR/tmpconfigforempty
+    local TMPCONFIG=$OUTPUT_DIR/tmpconfig
+    local RET_VALUE=$?
+
+    #check foxreview.config if null
+    if ! [ -s $CONFIG ];then 
+        printf "foxreview $FOXREVIEW_VERSION_NUMBER \n"
+        echo "                              "
+        echo "Error: $CONFIG is null, please create and edit it."
+        echo "                              " 
+        exit 5 
+    fi
+   
+    #dos2unix format convert
+    dos2unix $CONFIG 2>/dev/null
+
+    #remove EMPTY line and blank line
+    sed -e '/^#/ d' $CONFIG  | grep -v ^$ | sed -e 's/EMPTY/ /g' > $TMPCONFIGFOREMPTY 
+
+    #get the string before @@ in the dynamic view version informations
+    awk -F@@ '{ print $1 }' $TMPCONFIGFOREMPTY > $TMPCONFIG
+   
+    #Get the number of foxreview config file
+    LENGTH=`awk 'END{print NR}' $TMPCONFIGFOREMPTY`
+     
+    #check if exit html and src dir
+    if [ -d "$_HTML_PATH" ];then
+        rm -rf $_HTML_PATH
+    fi
+  
+    if [ -d "$_OLD_PATH" ];then
+        rm -rf $_OLD_PATH
+    fi
+   
+    if [ -d "$_NEW_PATH" ];then
+        rm -rf $_NEW_PATH
+    fi
+    
+    #build backup config dir
+    mkdir -p $BAKCONFIG_PATH
+   
+    #before output html, at first backup original config file 
+    cp $CONFIG $BAKCONFIG_PATH/$HIX_NUMBER.config 
+    
+    #in light of OUT_MODE to build dir
+    if [ $((($OUT_MODE)&($HTML_MODE))) -eq $HTML_MODE ];then
+        mkdir -p $_HTML_PATH
+    fi
+
+    if [ $((($OUT_MODE)&($OLD_MODE))) -eq $OLD_MODE ];then
+        mkdir -p $_OLD_PATH
+    fi
+    
+    if [ $((($OUT_MODE)&($NEW_MODE))) -eq $NEW_MODE ];then
+        mkdir -p $_NEW_PATH
+    fi
+    
+    #output recursively html file according to config file   
+    while (( $i <= $LENGTH))
+    do
+        #get old file and new file
+        j=`expr $i + 1`
+        _OLD_FILE=$(sed -n "$i p" $TMPCONFIGFOREMPTY)
+        _NEW_FILE=$(sed -n "$j p" $TMPCONFIGFOREMPTY)
+
+        #get old file name and new file name
+        _OLD_FILENAME=$(sed -n "$i p" $TMPCONFIG | xargs basename 2>/dev/null )
+        _NEW_FILENAME=$(sed -n "$j p" $TMPCONFIG| xargs basename 2>/dev/null )
+      
+        #count old file,goto the next 2nd line  
+        i=$(($i+2))
+         
+        #old filename should the same as new filename     
+        if [ "$_OLD_FILENAME" = "$_NEW_FILENAME" ];then
+            
+            #HTML_MODE            
+            if [ $((($OUT_MODE)&($HTML_MODE))) -eq $HTML_MODE ];then
+                 #compare the two file and get html file
+                 $DIFF $_OLD_FILE $_NEW_FILE > $_NEW_FILENAME.html 
+             
+                 if [ -f "$_HTML_PATH/$_NEW_FILENAME.html" ];then
+                     move_html $_NEW_FILENAME $_HTML_PATH 
+                 else 
+                     mv -f $_NEW_FILENAME.html $_HTML_PATH/$_NEW_FILENAME.html
+                 fi
+            fi
+            
+            #OLD_MODE
+            if [ $((($OUT_MODE)&($OLD_MODE))) -eq $OLD_MODE ];then
+                 if [ -f "$_OLD_PATH/$_OLD_FILENAME" ];then
+                     check_file cp $_OLD_FILE $_OLD_PATH $_OLD_FILENAME
+                 else 
+                     cp -f $_OLD_FILE $_OLD_PATH/$_OLD_FILENAME
+                 fi
+            fi
+
+            #NEW_MODE
+            if [ $((($OUT_MODE)&($NEW_MODE))) -eq $NEW_MODE ];then
+                 if [ -f "$_NEW_PATH/$_NEW_FILENAME" ];then
+                     check_file cp $_NEW_FILE $_NEW_PATH $_NEW_FILENAME
+                 else 
+                     cp -f $_NEW_FILE $_NEW_PATH/$_NEW_FILENAME
+                 fi
+            fi
+
+            #check cp operation if successed
+            if ! [ $RET_VALUE = 0 ];then
+                echo $RET_VALUE
+                echo "please check config file"
+                break 
+            fi
+        elif [ "$_OLD_FILENAME" = "" ] && [ "$_NEW_FILENAME" != "" ];then
+            #creat old null file
+            touch  EMPTY
+            _OLD_FILE=EMPTY
+            
+            #HTML_MODE            
+            if [ $((($OUT_MODE)&($HTML_MODE))) -eq $HTML_MODE ];then
+                 #compare the two file and get html file
+                 $DIFF $_OLD_FILE $_NEW_FILE > $_NEW_FILENAME.html
+
+                 if [ -f "$_HTML_PATH/$_NEW_FILENAME.html" ];then
+                     move_html $_NEW_FILENAME $_HTML_PATH 
+                 else 
+                     mv -f $_NEW_FILENAME.html $_HTML_PATH/$_NEW_FILENAME.html
+                 fi
+            fi
+
+            #NEW_MODE
+            if [ $((($OUT_MODE)&($NEW_MODE))) -eq $NEW_MODE ];then
+                 if [ -f "$_NEW_PATH/$_NEW_FILENAME" ];then
+                     check_file cp $_NEW_FILE $_NEW_PATH $_NEW_FILENAME
+                 else 
+                     cp -f $_NEW_FILE $_NEW_PATH/$_NEW_FILENAME
+                 fi
+            fi
+             
+            #check cp operation if successed
+            if ! [ $RET_VALUE = 0 ];then
+                echo $RET_VALUE
+                echo "please check config file"
+                break 
+            fi            
+
+        elif [ "$_OLD_FILENAME" != "" ] && [ "$_NEW_FILENAME" = "" ];then
+            #creat old null file
+            touch EMPTY 
+            _NEW_FILE=EMPTY
+            
+            #HTML_MODE            
+            if [ $((($OUT_MODE)&($HTML_MODE))) -eq $HTML_MODE ];then
+                 #compare the two file and get html file
+                 $DIFF $_OLD_FILE $_NEW_FILE > $_OLD_FILENAME.html
+
+                 if [ -f "$_HTML_PATH/$_OLD_FILENAME.html" ];then
+                     move_html $_OLD_FILENAME $_HTML_PATH 
+                 else 
+                     mv -f $_OLD_FILENAME.html $_HTML_PATH/$_OLD_FILENAME.html
+                 fi
+            fi
+            
+            #OLD_MODE
+            if [ $((($OUT_MODE)&($OLD_MODE))) -eq $OLD_MODE ];then
+                 if [ -f "$_OLD_PATH/$_OLD_FILENAME" ];then
+                     check_file cp $_OLD_FILE $_OLD_PATH $_OLD_FILENAME
+                 else 
+                     cp -f $_OLD_FILE $_OLD_PATH/$_OLD_FILENAME
+                 fi
+            fi
+
+            #check mv operation if successed
+            if ! [ $RET_VALUE = 0 ];then
+                echo $RET_VALUE
+                echo "please check config file"
+                break 
+            fi
+            
+        else
+            rm -rf $PATCH_PATH
+            echo $_OLD_FILENAME
+            echo $_NEW_FILENAME
+            echo "please check your config file, you can refer to sample config file config.sample"
+            echo "check the `expr $i - 3` line in config file"
+            break
+        fi
+    done  
+    
+    #remove the tmp old file 
+    if [ -f "$(pwd)/EMPTY" ];then
+        rm -rf $(pwd)/EMPTY
+    fi
+    
+    #remove the tmp new file
+    if [ -f "$(pwd)/empty" ];then
+        rm -rf $(pwd)/empty
+    fi
+    
+    #remove the tmp file 
+    rm -rf $TMPCONFIGFOREMPTY
+    rm -rf $TMPCONFIG
+     
+}
+
+########################################################################
+## get the filename for all current checkout but no checkin file      ##
+########################################################################
+checkout_parse()
+{   
+    #define local variable
+    local CURRENTFILE=
+    local FILECOUNT=1
+    local TMPCHECKEDOUTLIST=$OUTPUT_DIR/tmpcheckedoutlist
+    local TMPFILELIST=$OUTPUT_DIR/tmpfilelist
+    local FOXREVIEWCONFIG=$OUTPUT_DIR/foxreview.config
+    local TMPCHECKEDOUT=$OUTPUT_DIR/tmpcheckedout
+  
+    #list all file checked out 
+    cleartool lsco -cview -a >$TMPCHECKEDOUTLIST
+   
+    #take the 5th field to get file list
+    sed  -e 's/"/ /g' $TMPCHECKEDOUTLIST | awk '{print $5}' >$TMPFILELIST
+    
+    #Get the number of file list
+    LENGTH=`awk 'END{print NR}' $TMPFILELIST`
+ 
+    #loop for generating foxreview.config file 
+    while (( $FILECOUNT <= $LENGTH))
+    do
+        #take every line from file list
+        CURRENTFILE=$(sed -n "$FILECOUNT p" $TMPFILELIST)
+        
+        #output predecessor and current file info to tmp file
+        cleartool diff -pre $CURRENTFILE >$TMPCHECKEDOUT
+                
+        #get checkout file and predecessor version
+        TMPOLDFILE=$(sed -n "2 p" $TMPCHECKEDOUT | awk -F: '{print $2}' )
+        TMPNEWFILE=$(sed -n "3 p" $TMPCHECKEDOUT | awk -F: '{ print $2 }' )
+        
+        #append filelist to foxreview config file
+        echo   $TMPOLDFILE   >>$FOXREVIEWCONFIG
+        echo   $TMPNEWFILE   >>$FOXREVIEWCONFIG
+        echo   " "           >>$FOXREVIEWCONFIG
+        
+        #next file of file list
+        FILECOUNT=$(($FILECOUNT+1))
+
+    done    
+
+    #remove the tmp file
+    rm -rf $TMPCHECKEDOUTLIST
+    rm -rf $TMPFILELIST
+    rm -rf $TMPCHECKEDOUT
+
+}
+
+########################################################################
+## apply patch to file or directory                                   ##
+########################################################################
+function apply_patch()
+{
+    echo "           apply                      "
+     
+    response_apply=
+    using_patch=
+   
+    echo -n "Enter name of applying patch > "
+    read response_apply
+    if [ -n "$response_apply" ]; then
+        using_patch=$response_apply
+    fi
+
+    patch -p0 <$using_patch
+
+}
+
+########################################################################
+## restore to the original release version                            ##
+########################################################################
+function restore_patch()
+{
+    echo "                restore                 "
+    
+    response_restore=
+    restore_name=
+   
+    echo -n "Enter name of restore patch  > "
+    read response_restore
+    if [ -n "$response_restore" ]; then
+        restore_name=$response_restore
+    fi
+
+    patch -Rp0 <$restore_name
+}
+
+
+########################################################################
+## main process                                                       ##
+########################################################################
+
+#define variable
+CONFIG_DIR=
+OUTPUT_DIR=
+DEFAULT_CONFIG=~/.foxreview/CONFIG
+
+#default flag value
+HTMLFLAG=0
+OLDFLAG=0
+NEWFLAG=0
+OUTMODE=0
+
+#main process
+if [ "$#" = 1 ];then
+    if [ "$1" = "-h" ];then 
+        chelp
+        exit 1
+    elif [ "$1" = "-s" ];then
+        if [ -f "$DEFAULT_CONFIG" ];then
+            #get config and output path 
+            CONFIG_DIR=$(sed -n "1 p" $DEFAULT_CONFIG | awk -F= '{print $2}' )
+            OUTPUT_DIR=$(sed -n "2 p" $DEFAULT_CONFIG | awk -F= '{print $2}' )
+            
+            #print information
+            printf "%s $FOXREVIEW_VERSION_NUMBER \n" $(basename $0) >&2
+            echo "                        "
+            echo "CONFIG_DIR = $CONFIG_DIR"
+            echo "OUTPUT_DIR = $OUTPUT_DIR"
+            echo "                        "
+        else
+            printf "%s $FOXREVIEW_VERSION_NUMBER \n" $(basename $0) >&2
+            echo "                        "
+            echo "Please run command \"foxreview_init\" first, to configure foxreview !"
+            echo "CONFIG_DIR and OUTPUT_DIR are null"
+            echo "                                  "
+        fi
+    elif [ "$1" = "-v" ];then
+        echo "foxreview version $FOXREVIEW_VERSION_NUMBER"
+    elif ([ "$1" = "-l" ] || [ "$1" = "-o" ] || [ "$1" = "-n" ]);then 
+        echo "foxreview version $FOXREVIEW_VERSION_NUMBER" 
+        echo "please input <output_dir> parameter "
+    else
+        echo "You input wrong options: $1 "
+        chelp 
+        exit 1
+    fi
+elif [ "$#" = 2 ];then
+    #set flag 
+    while getopts 'lonh' OPTION
+    do
+        case $OPTION in
+            l)    HTMLFLAG=4
+                 # bval="$OPTARG"
+            	  ;;
+            o)	  OLDFLAG=2
+                  ;;
+            n)	  NEWFLAG=1
+            	  ;;
+            h)	  newflag=0
+            	  ;;
+            *)    chelp
+                  exit 2
+            	  ;;
+        esac
+    done
+    
+    #bitwise OR
+    OUTMODE=$(($HTMLFLAG|$OLDFLAG|$NEWFLAG))
+    
+    if ! [ "$OUTMODE" = 0 ];then
+        
+        #check if exist CONFIG 
+        if ! [ -f "$DEFAULT_CONFIG" ];then 
+            printf "%s $FOXREVIEW_VERSION_NUMBER \n" $(basename $0) >&2
+            echo "                    "
+            echo "Please run command \"foxreview_init\" first, to configure foxreview !"
+            exit 
+        else
+            #get config and output path 
+            CONFIG_DIR=$(sed -n "1 p" $DEFAULT_CONFIG | awk -F= '{print $2}' )
+            OUTPUT_DIR=$(sed -n "2 p" $DEFAULT_CONFIG | awk -F= '{print $2}' )
+            
+            #create dir according to config file
+            mkdir -p $CONFIG_DIR 2>/dev/null
+            mkdir -p $OUTPUT_DIR 2>/dev/null
+
+        fi 
+        
+        #call read_line
+        read_line $OUTMODE $2
+    else
+        #echo "OUTMODE 0"
+        printf "%s $FOXREVIEW_VERSION_NUMBER \n" $(basename $0) >&2
+        echo "                "
+        printf "Usage: %s [-l] [-o] [-n] [-s] [-v] [-h] <output_dir> \n" $(basename $0) >&2
+        exit 3
+    fi
+else
+    fhelp
+    exit 4
+fi
+
+
+
