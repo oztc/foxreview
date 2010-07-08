@@ -1,1 +1,127 @@
-#foxreview is a code review tool
+#
+# DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
+#
+# README
+# 
+# Copyright  (C) 2009~2010 Foxreview <foxreview@googlecode.com> All Rights Reserved.
+#
+#
+# This script is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This script is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Library General Public
+# License along with this library; if not, write to the
+# Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+# Boston, MA 02111-1307, USA, or look at the website 
+# http://www.gnu.org/copyleft/gpl.html
+
+
+
+    How to Use foxreview 0.1 
+       
+ 
+ 1. foxreview command set 
+ 
+    foxreview has three command: foxreview, foxreview_init and foxreview_uninit. 
+    
+    the command "foxreview" will generate HTML file according to our config.
+ 
+ 2. initialization and uninitialization
+  
+    foxreview_init
+ 
+    foxreview_init command initialize our foxreview environment,it will
+    create our config which define our config dir and output dir.
+ 
+    foxreview_uninit
+ 
+    foxreview_uninit command uninitialize our foxreview environment,it will
+    delete our foxreview config file.
+ 
+ 3. set our view 
+    
+    use clearcase command set view for our patch file:
+ 
+    ct setview ourview
+ 
+ 4. Use foxreview command option 
+ 
+    foxreview [options] <output_dir>
+ 
+    options: 
+       
+        -l: we can get output html file according to our config 
+            file named foxreview.config, if successed, we will
+            see one new directory named patch in our output directory
+            the patch directory contain <output_dir> like P2x_bug000xxx 
+            which has config file and html subdirectory.
+        -o: we can get old file according to our config 
+            file named foxreview.config, if successed, we will
+            see one new directory named patch in our output directory
+            the patch directory contain <output_dir> like P2x_bug000xxxx 
+            which has config file and old_src subdirectory.
+        -n: we can get new file according to our config 
+            file named foxreview.config, if successed, we will
+            see one new directory named patch in our output directory
+            the patch  directory contain <output_dir> like P2x_bug000xxx
+            which has config file and new_src subdirectory.
+        -s: show config and output directory
+        -v: show foxreview version information
+        -h: show help file
+ 
+    the above options -l ,-o and -n can be combined like -lo,-lon,-no,to use. 
+     
+ 5. write our foxreview.config for foxreview
+ 
+    there is one sample file named config.sample, we can write foxreview.config
+    complying with its format. if we use sample config file, please rename it
+    to foxreview.config, note the default config is foxreview.config ! 
+ 
+    now foxreview.config format like the below:  
+        OLDFILENAME1
+        NEWFILENAME1
+ 
+        OLDFILENAME2
+        NEWFILENAME2
+ 
+        OLDFILENAME3
+        NEWFILENAME3
+ 
+    if we delete one old file or add one new file, please use key word EMPTY in the 
+    the foxreview.config as new file and old file respectively like the below:
+ 
+        OLDFILENAME1
+        NEWFILENAME1
+ 
+        OLDFILENAME2
+        NULL
+ 
+        NULL         
+        NEWFILENAME3
+        
+ 6. How to get the file from dynamic view from clearcase
+  
+    use the command: 
+                    ct lsvt -g filename
+ 
+    then get file version information referring version_button.jpg
+    and get_version.jpg
+ 
+ 7. Where to get the patch file and new file 
+ 
+    after execute the command: foxreview -l <output_dir>, there will be one new
+    directory named <output_dir> under patch directory  in the our work directory.
+    In <output_dir> directory,there are one config file three subdirectory: html,old_src
+    and new_src . html directory contains the foxreview HTML file, old_src directory
+    contains old source file, new_src directory contains new sourcr file and config 
+    directory has one backup foxreview.config file.
+        
+ 8. Report bugs to <foxreview@googlecode.com>
+       
