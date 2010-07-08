@@ -1,0 +1,303 @@
+#!/bin/sh
+#
+# DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
+#
+# foxreview_init
+# 
+# Copyright  (C) 2009~2010 Foxreview <foxreview@googlecode.com> All Rights Reserved.
+#
+#
+# This script is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This script is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Library General Public
+# License along with this library; if not, write to the
+# Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+# Boston, MA 02111-1307, USA, or look at the website 
+# http://www.gnu.org/copyleft/gpl.html
+
+
+########################################################################
+##  foxreview version info                                            ##
+########################################################################
+FOXREVIEW_VERSION_NUMBER='0.1'
+
+########################################################################
+##  output to readme.txt                                              ##
+########################################################################
+function foxreview_readme()
+{
+    echo "    How to Use foxreview $FOXREVIEW_VERSION_NUMBER "
+    echo "       "
+    echo " "
+    echo " 1. foxreview command set "
+    echo " "
+    echo "    foxreview has three command: foxreview, foxreview_init and foxreview_uninit. "
+    echo "    "
+    echo "    the command \"foxreview\" will generate HTML file according to our config."
+    echo " "
+    echo " 2. initialization and uninitialization"
+    echo "  "
+    echo "    foxreview_init"
+    echo " "
+    echo "    foxreview_init command initialize our foxreview environment,it will"
+    echo "    create our config which define our config dir and output dir."
+    echo " "
+    echo "    foxreview_uninit"
+    echo " "
+    echo "    foxreview_uninit command uninitialize our foxreview environment,it will"
+    echo "    delete our foxreview config file."
+    echo " "
+    echo " 3. set our view "
+    echo "    "
+    echo "    use clearcase command set view for our patch file:"
+    echo " "
+    echo "    ct setview ourview"
+    echo " "
+    echo " 4. Use foxreview command option "
+    echo " "
+    echo "    foxreview [options] <output_dir>"
+    echo " "
+    echo "    options: "
+    echo "       "
+    echo "        -l: we can get output html file according to our config "
+    echo "            file named foxreview.config, if successed, we will"
+    echo "            see one new directory named patch in our output directory"
+    echo "            the patch directory contain <output_dir> like P2x_bug000xxx "
+    echo "            which has config file and html subdirectory."
+    echo "        -o: we can get old file according to our config "
+    echo "            file named foxreview.config, if successed, we will"
+    echo "            see one new directory named patch in our output directory"
+    echo "            the patch directory contain <output_dir> like P2x_bug000xxxx "
+    echo "            which has config file and old_src subdirectory."
+    echo "        -n: we can get new file according to our config "
+    echo "            file named foxreview.config, if successed, we will"
+    echo "            see one new directory named patch in our output directory"
+    echo "            the patch  directory contain <output_dir> like P2x_bug000xxx"
+    echo "            which has config file and new_src subdirectory."
+    echo "        -s: show config and output directory"
+    echo "        -v: show foxreview version information"
+    echo "        -h: show help file"
+    echo " "
+    echo "    the above options -l ,-o and -n can be combined like -lo,-lon,-no,to use. "
+    echo "     "
+    echo " 5. write our foxreview.config for foxreview"
+    echo " "
+    echo "    there is one sample file named config.sample, we can write foxreview.config"
+    echo "    complying with its format. if we use sample config file, please rename it"
+    echo "    to foxreview.config, note the default config is foxreview.config ! "
+    echo " "
+    echo "    now foxreview.config format like the below:  "
+    echo "        OLDFILENAME1"
+    echo "        NEWFILENAME1"
+    echo " "
+    echo "        OLDFILENAME2"
+    echo "        NEWFILENAME2"
+    echo " "
+    echo "        OLDFILENAME3"
+    echo "        NEWFILENAME3"
+    echo " "
+    echo "    if we delete one old file or add one new file, please use key word EMPTY in the "
+    echo "    the foxreview.config as new file and old file respectively like the below:"
+    echo " "
+    echo "        OLDFILENAME1"
+    echo "        NEWFILENAME1"
+    echo " "
+    echo "        OLDFILENAME2"
+    echo "        NULL"
+    echo " "
+    echo "        NULL         "
+    echo "        NEWFILENAME3"
+    echo "        "
+    echo " 6. How to get the file from dynamic view from clearcase"
+    echo "  "
+    echo "    use the command: "
+    echo "                    ct lsvt -g filename"
+    echo " "
+    echo "    then get file version information referring version_button.jpg"
+    echo "    and get_version.jpg"
+    echo " "
+    echo " 7. Where to get the patch file and new file "
+    echo " "
+    echo "    after execute the command: foxreview -l <output_dir>, there will be one new"
+    echo "    directory named <output_dir> under patch directory  in the our work directory."
+    echo "    In <output_dir> directory,there are one config file three subdirectory: html,old_src"
+    echo "    and new_src . html directory contains the foxreview HTML file, old_src directory"
+    echo "    contains old source file, new_src directory contains new sourcr file and config "
+    echo "    directory has one backup foxreview.config file."
+    echo "        "
+    echo " 8. Report bugs to <foxreview@googlecode.com>"
+    echo "       "
+}
+
+########################################################################
+##  output to foxreview.config.sample                                 ##
+########################################################################
+function foxreview_config_sample()
+{
+    echo "/openproject/test/work.c@@/main/test2/2"
+    echo "/openproject/test/work.c@@/main/test2/3"
+
+
+    echo "/openproject/test/fork.c@@/main/test2/3"
+    echo "NULL"
+
+    echo"NULL"
+    echo "/openproject/test/fork.c@@/main/test2/3"
+       
+}
+
+
+########################################################################
+##  output to foxreview.config.guide                                  ##
+########################################################################
+function foxreview_config_guide()
+{
+    echo "##############################################################################################"
+    echo "# Please list the file according to below format (symbol # is for comments, and should be removed while use):"
+    echo "# file 1 (old version)"
+    echo "# file 1 (new version)"
+    echo "# "
+    echo "# file 2 (old version)"
+    echo "# file 2 (new version)"
+    echo "##############################################################################################"
+
+    echo "# For example (symbol # is for comments, and should be removed while use):"
+    echo "##############################################################################################"
+    echo "# Please refere to the example config under the same directory: config.example"
+    echo "##############################################################################################"
+    echo ""
+    echo "##############################################################################################"
+
+    echo "#if you delete one old file or add new file, please use key words EMPTY to replace new file"
+    echo "# or old file respectively,it looks like the below:"
+    echo ""
+
+    echo "/openproject/test/work.c@@/main/test2/2"
+    echo "/openproject/test/work.c@@/main/test2/3"
+    echo ""
+
+    echo "#delete one old file"
+    echo "/openproject/test/fork.c@@/main/test2/3"
+    echo "NULL"
+    echo ""
+
+    echo "#add one new file"
+    echo"NULL"
+    echo "/openproject/test/fork.c@@/main/test2/3"
+
+    echo "##############################################################################################"
+    echo ""
+
+}
+
+########################################################################
+## setting path for  installing foxreview config                      ##
+########################################################################
+function install_config()
+{
+     local CONFIG_DIR=~/.foxreview
+     local CONFIG_FILE=~/.foxreview/CONFIG
+     local DEFAULT_CONFIG_DIR=~/foxreview_working
+     local DEFAULT_WORK_DIR=~/foxreview_working
+     local FOXREVIEW_CONFIG_DIR=
+     local FOXREVIEW_WORK_DIR=
+    
+     local RETVAL='\n'
+     local ANSWER=
+     local ANSWER_CONFIG=
+     local ANSWER_WORK=
+  
+     echo "Welcome you to use foxreview $FOXREVIEW_VERSION_NUMBER "
+     echo "Do you want to install foxreview ? (yes [y] or no [n])"
+    
+     read ANSWER
+
+    #do in light of ANSWER       
+    if [ "$ANSWER" = "yes" ] || [ "$ANSWER" = "y" ] ;then
+      
+        #create config directory
+        mkdir -p ~/.foxreview
+       
+        #setting config path    
+        echo " "
+        echo "1) To configure PATH of CONFIG dir (foxreview.config)"
+        echo "   Press RETURN for default [$DEFAULT_CONFIG_DIR], or input your config path."
+    
+        read ANSWER_CONFIG
+
+        if [ "$ANSWER_CONFIG" = "" ];then
+            #setting default path for config and work
+            FOXREVIEW_CONFIG_DIR=$DEFAULT_CONFIG_DIR
+        else
+            #echo " directory"
+            FOXREVIEW_CONFIG_DIR=$ANSWER_CONFIG
+        fi
+
+        #setting work path
+        echo " "
+        echo "2) To configure PATH of OUTPUT dir (html,old_src,new_src)."
+        echo "   Press RETURN for default [$DEFAULT_WORK_DIR], or input your output path"
+    
+        read ANSWER_WORK
+
+        if [ "$ANSWER_WORK" = "" ];then
+            #setting default path for config and work
+            FOXREVIEW_WORK_DIR=$DEFAULT_WORK_DIR
+        else
+            #echo " WORK directory"
+            FOXREVIEW_WORK_DIR=$ANSWER_WORK
+        fi
+         
+        #show notice information
+        echo "Done!"
+        echo "Now you can use foxreview tool directly, Enjoy it."
+ 
+        #remove exist foxreview config path
+        if [ -f "$CONFIG_FILE" ];then
+            rm -rf $CONFIG_FILE
+        fi 
+      
+        #append to setting foxreview.config and work path
+        echo "CONFIG_DIR=$FOXREVIEW_CONFIG_DIR" >>$CONFIG_FILE
+        echo "OUTPUT_DIR=$FOXREVIEW_WORK_DIR" >>$CONFIG_FILE    
+        mkdir -p $FOXREVIEW_CONFIG_DIR  2>/dev/null
+        mkdir -p $FOXREVIEW_WORK_DIR    2>/dev/null
+
+        foxreview_readme > $FOXREVIEW_CONFIG_DIR/README.txt 2>/dev/null 
+        foxreview_config_sample > $FOXREVIEW_CONFIG_DIR/foxreview.config.sample  2>/dev/null
+        foxreview_config_guide > $FOXREVIEW_CONFIG_DIR/foxreview.config.guide  2>/dev/null
+  
+    elif [ "$ANSWER" = "no" ] || [ "$ANSWER" = "n" ] ; then
+        echo "      "
+        echo "Bye ! "
+        exit
+    else
+        echo "please re-run foxreview_init and input yes or no !" 
+    fi
+
+}
+
+
+########################################################################
+## foxreview_init main process                                        ##
+########################################################################
+
+case "$#" in
+    0) install_config 
+       ;;
+    *) printf "foxreview $FOXREVIEW_VERSION_NUMBER \n"
+       printf "Usage: foxreview_init  \n"
+       echo   "Initialize foxreview running environment "
+       echo "                              "
+       echo "Report bugs to the author <foxreview@googlecode.com>"
+       ;;
+esac
+
