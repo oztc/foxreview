@@ -1,0 +1,747 @@
+#!/usr/bin/python
+#
+# DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
+#
+# diff2html_binary
+# 
+# Copyright (C) 2001 Yves Bailly <diff2html@tuxfamily.org>
+#           (C) 2001 MandrakeSoft S.A.
+#           (C) 2009~2010 Foxreview <foxreview@googlecode.com> 
+#
+# This script is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This script is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Library General Public
+# License along with this library; if not, write to the
+# Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+# Boston, MA 02111-1307, USA, or look at the website 
+# http://www.gnu.org/copyleft/gpl.html
+
+import os
+import string
+import re
+import time
+import stat
+import os.path
+import commands
+
+# implement simple macro,
+# its usage:
+#          import consttype
+#          consttype.magic = 23
+#          del consttype.magic #remove an named attribute
+#          consttype.__del__() #remove all attributes
+#
+class _consttype:
+    class _ConstError(TypeError):
+        pass
+    def __repr__(self):
+        return "Const type definitons."
+    def __setattr__(self,name,value):
+      v = self.__dict__.get(name,value)
+      if type(v) is not type(value):
+         raise self.ConstTypeError,"Can not rebind const %s to %s"%(type(v),type(value))
+      self.__dict_[name]=value
+
+    def __del__(self):
+        self.__dict__.clear()
+
+ 
+
+import sys
+
+#define tool version
+FOXREVIEW_VERSION_NUMBER='0.1'
+
+default_css = \
+"""
+TABLE { border-collapse: collapse; border-spacing: 0px solid #a0a0a0; margin: 10px 0px 10px 0px; }
+table.bordered tr th, table.bordered tr td { vertical-align: top; padding: 3px; border: 1px solid #a0a0a0; }
+table.bordered tr th { background-color: #e5e5e5;}
+table.bordered tr td.group { background-color: #f5f5f5;}
+TD.linenum { color: #909090;
+             text-align: right;
+             vertical-align: top;
+             font-weight: bold;
+             border-right: 1px solid black;
+             border-left: 1px solid black; }
+TD.added { background-color: #AAFFAA; }
+TD.modified { background-color: #FFFF77; }
+TD.removed { background-color: #FFAAAA; }
+TD.normal { background-color: #FFFFE1; }
+TD.break {table-layout:fixed;word-wrap:break-word;word-break:break-all;}
+"""
+
+def print_usage() :
+    print """
+diff2html_binary - Formats diff(1) output to an HTML page on stdout
+
+Usage: diff2html_binary [--help] [--only-changes] [--style-sheet file.css]
+                 [diff options] file1 file2
+
+--help                  This message
+--only-changes          Do not display lines that have not changed
+diff options            All other options are passed to diff(1)
+
+# Basic use
+diff2html_binary file1.txt file2.txt > differences.html
+"""
+
+#the below function as to check binary or text file
+text_characters = "".join(map(chr, range(32, 127)) + list("\n\r\t\b"))
+_null_trans = string.maketrans("", "")
+
+def istextfile(filename, blocksize = 512):
+    return istext(open(filename).read(blocksize))
+
+def istext(s):
+    if "\0" in s:
+        return 0
+   
+    if not s:  # Empty files are considered text
+        return 1
+
+    # Get the non-text characters (maps a character to itself then
+    # use the 'remove' option to get rid of the text characters.)
+    t = s.translate(_null_trans, text_characters)
+
+    # If more than 20% non-text characters, then
+    # this is considered a binary file
+    if len(t)/len(s) > 0.20:
+        return 0
+    return 1
+
+def checktext(s1,s2) :
+    file1_type = istextfile(s1)
+    file2_type = istextfile(s2)
+
+    if file1_type and file2_type :
+       return 1
+    return 0
+   
+def str2html(s) :
+    s1 = string.replace(string.rstrip(s), "&", "&amp;")
+    if ( len(s1) == 0 ) : return ( s1 ) ;
+    s1 = string.replace(s1, "<", "&lt;")
+    s1 = string.replace(s1, ">", "&gt;")
+    i = 0
+    s2 = ""
+    while ( s1[i] == " " ) :
+        s2 += "&nbsp;"
+        i += 1
+    s2 += s1[i:]
+    return ( s2 )
+
+def textprocess(file1,file2) :
+    
+    #get username
+    username = commands.getoutput('whoami')
+
+    # Invokes "diff"
+    diff_stdout = os.popen("diff %s" % string.join(argv[1:]), "r")
+    diff_output = diff_stdout.readlines()
+    diff_stdout.close()
+    # Maps to store the reported differences
+    changed = {}
+    deleted = {}
+    added = {}
+    # Magic regular expression
+    diff_re = re.compile(
+        r"^(?P<f1_start>\d+)(,(?P<f1_end>\d+))?"+ \
+         "(?P<diff>[acd])"+ \
+         "(?P<f2_start>\d+)(,(?P<f2_end>\d+))?")
+    # Now parse the output from "diff"
+    for diff_line in diff_output:
+        diffs = diff_re.match(string.strip(diff_line))
+        # If the line doesn't match, it's useless for us
+        if not ( diffs  == None ) :
+            # Retrieving informations about the differences :
+            # starting and ending lines (may be the same)
+            f1_start = int(diffs.group("f1_start"))
+            if ( diffs.group("f1_end") == None ) :
+                f1_end = f1_start
+            else :
+                f1_end = int(diffs.group("f1_end"))
+            f2_start = int(diffs.group("f2_start"))
+            if ( diffs.group("f2_end") == None ) :
+                f2_end = f2_start
+            else :
+                f2_end = int(diffs.group("f2_end"))
+            f1_nb = (f1_end - f1_start) + 1
+            f2_nb = (f2_end - f2_start) + 1
+    
+            # Is it a changed (modified) line ?
+            if ( diffs.group("diff") == "c" ) :
+                # We have to handle the way "diff" reports lines merged
+                # or splitted
+                if ( f2_nb < f1_nb ) :
+                    # Lines merged : missing lines are marqued "deleted"
+                    for lf1 in range(f1_start, f1_start+f2_nb) :
+                        changed[lf1] = 0
+                    for lf1 in range(f1_start+f2_nb, f1_end+1) :
+                        deleted[lf1] = 0
+                elif ( f1_nb < f2_nb ) :
+                    # Lines splitted : extra lines are marqued "added"
+                    for lf1 in range(f1_start, f1_end+1) :
+                        changed[lf1] = 0
+                    for lf2 in range(f2_start+f1_nb, f2_end+1) :
+                        added[lf2] = 0
+                else :
+                    # Lines simply modified !
+                    for lf1 in range(f1_start, f1_end+1) :
+                        changed[lf1] = 0
+            # Is it an added line ?
+            elif ( diffs.group("diff") == "a" ) :
+                for lf2 in range(f2_start, f2_end+1):
+                    added[lf2] = 0
+            else :
+            # OK, so it's a deleted line
+                for lf1 in range(f1_start, f1_end+1) :
+                    deleted[lf1] = 0
+ 
+   
+    # Storing the two reviewed files, to produce the HTML output
+    f1 = open(file1, "r")
+    f1_lines = f1.readlines()
+    f1.close()
+    f2 = open(file2, "r")
+    f2_lines = f2.readlines()
+    f2.close()
+   
+    # Finding some info about the files
+    f1_stat = os.stat(file1)
+    f2_stat = os.stat(file2)
+
+    # Printing the HTML header, and various known informations
+
+    #initialize changed_sum
+    changed_sum = 0
+    # Preparing the links to changes
+    if ( len(changed) == 0 ) :
+        changed_lnks = "None"
+    else :
+        changed_lnks = ""
+        keys = changed.keys()
+        keys.sort()
+        changed_sequence = changed[changed.keys()[0]]
+        for key in keys :
+            if ( ( changed_sequence + 1 ) == key ) :
+                changed_sequence +=1
+                changed_sum +=1
+                continue
+            else :
+                changed_lnks += "<a href=\"#F1_%d\">%d</a>, " % (key, key)
+                changed_sequence = key
+                changed_sum +=1
+        changed_lnks = changed_lnks[:-2]
+
+    #initialize added_sum
+    added_sum = 0
+    if ( file1_length == 0 ) :
+        added_lnks = "All"
+        added_sum = len(added.keys())
+    elif ( len(added) == 0 ) :
+        added_lnks = "None"
+    else :
+        added_lnks = ""
+        keys = added.keys()
+        keys.sort()
+        added_sequence = added[added.keys()[0]]
+        for key in keys :
+            if ( ( added_sequence + 1 ) == key ) :
+                added_sequence +=1
+                added_sum +=1
+                continue
+            else :
+                added_lnks += "<a href=\"#F2_%d\">%d</a>, " % (key, key)
+                added_sequence = key
+                added_sum +=1
+        added_lnks = added_lnks[:-2]
+
+    #initialized deleted_sum
+    deleted_sum = 0
+    if ( file2_length == 0 ) :
+        deleted_lnks = "All"
+        deleted_sum = len(deleted.keys())
+    elif ( len(deleted) == 0 ) :
+        deleted_lnks = "None"
+    else :
+        deleted_lnks = ""
+        keys = deleted.keys()
+        keys.sort()
+        deleted_sequence = deleted[deleted.keys()[0]]
+        for key in keys :
+            if ( ( deleted_sequence + 1 ) == key) :
+                deleted_sequence +=1
+                deleted_sum +=1
+                continue
+            else :
+                deleted_lnks += "<a href=\"#F1_%d\">%d</a>, " % (key, key)
+                deleted_sequence = key
+                deleted_sum +=1
+        deleted_lnks = deleted_lnks[:-2]
+
+    print """
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"
+ "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+    <title>Code Review Between %s and %s Report</title>""" % (file1, file2)
+    if ( external_css == "" ) :
+        print "    <style>%s</style>" % default_css
+    else :
+        print "    <link rel=\"stylesheet\" href=\"%s\" type=\"text/css\">" % \
+        external_css
+
+    print """
+
+</head>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3.5>
+    Code Review Report
+    </font>
+    </strong>
+    </td>
+    </tr>
+</table>
+
+
+<table>
+<i><font size=2>Generated by foxreview version %s, This review report helps developer track the change of the given file between different versions (old and new version on ClearCase), and it works properly in Internet Explorer or Firefox or Google Chrome browser,and it can help us to review and merge code.
+Any suggest as to improve this code review tool are welcome, Please
+<a href="mailto:<foxreview@googlecode.com> ?subject=suggest for improving this code review tool" NAME="">contact me</a>.
+</font></i>
+
+""" % (FOXREVIEW_VERSION_NUMBER)
+    print """
+    
+</table>
+
+
+<body>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    1.Submit info
+    </font>
+    </strong>
+    </td>
+    </tr>
+    <table class="bordered">
+        <tr>
+        <th><font size=2>Committer</font></th>
+        <th><font size=2>Submit Time</font></th>
+        </tr>
+        <tr>
+        <td><font size=2>%s</font></td>
+        <td><font size=2>%s</font></td>
+        </tr>
+""" % (username,time.strftime('%a %m-%d-%Y %H:%M:%S %Z'))
+    print """
+    </table>
+</table>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    2.Files reviewed
+    </font>
+    </strong>
+    </td>
+    </tr>
+    <tr><td width="50%%">
+    <table class="bordered">
+        <tr>
+        <th><font size=2>Type</font></th>
+        <th><font size=2>File Name</font></th>
+        <th><font size=2>Total Lines</font></th>
+        <th><font size=2>Last Modified</font></th>
+        </tr>
+        <tr>
+        <td>Old</td>
+        <td class="break"><font size=2>%s</font></td>
+        <td><font size=2>%d</font></td>
+        <td><font size=2>%s</font></td>
+        </tr>
+        <tr>
+        <td>New</td>
+        <td class="break"><font size=2>%s</font></td>
+        <td><font size=2>%d</font></td>
+        <td><font size=2>%s</font></td>
+        </tr>
+""" % (file1, len(f1_lines), 
+      # time.asctime(time.gmtime(f1_stat[stat.ST_MTIME])),
+       time.strftime("%a %m-%d-%Y %H:%M:%S %Z",time.localtime(f1_stat[stat.ST_MTIME])),
+       file2,
+       len(f2_lines), 
+       time.strftime("%a %m-%d-%Y %H:%M:%S %Z",time.localtime(f2_stat[stat.ST_MTIME])))
+    print """
+    </table>
+    </td>
+    <td>
+    </td>
+    </tr>
+
+</table>
+
+
+<table>
+<tr><td width="60%%">
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    3.Review summary
+    </font>
+    </strong>
+    </td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td class="modified"><font size=2>Modified (total %s lines):&nbsp;</font></td>
+        <td class="modified"><font size=2>%s</font></td>
+    </tr>
+    <tr>
+    <td class="added"><font size=2>Added (total %s lines):&nbsp;</font></td>
+        <td class="added"><font size=2>%s</font></td>
+    </tr>
+    <tr>
+        <td class="removed"><font size=2>Removed (total %s lines):&nbsp;</font></td>
+        <td class="removed"><font size=2>%s</font></td>
+    </tr>
+</table>
+
+</td>
+
+<td width="40%%">
+</td>
+</tr>
+</table>
+</table>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    4.Review detail
+    </font>
+    </strong>
+    </td>
+    </tr>
+</table>
+
+       
+<hr/>
+<table>
+    <tr>
+        <th>&nbsp;</th>
+        <td align=left class="break"><strong><font size=1>%s</font></strong></td>
+        <th>&nbsp;</th>
+        <th>&nbsp;</th>
+        <td align=left class="break"><strong><font size=1>%s</font></strong></td>
+        <th>&nbsp;</th>
+    </tr>
+
+""" % (changed_sum,changed_lnks,added_sum,added_lnks,deleted_sum,deleted_lnks,
+       file1,file2)
+
+    # Running through the differences
+    nl1 = nl2 = 0
+    while not ( (nl1 >= len(f1_lines)) and (nl2 >= len(f2_lines)) ) :
+        if ( added.has_key(nl2+1) ) :
+            f2_lines[nl2]
+      # This is an added line
+            print """
+    <tr>
+        <td class="linenum"><font size=2>&nbsp;</font></td>
+        <td class="added"><font size=2>&nbsp;</font></td>
+        <td width="16"><font size=2>&nbsp;</font></td>
+        <td class="linenum"><font size=2><a name="F2_%d">%d</a></font></td>
+        <td class="added"><font size=2>%s</font></td>
+    </tr>
+
+""" % (nl2+1, nl2+1, str2html(f2_lines[nl2]))
+            nl2 += 1
+        elif ( deleted.has_key(nl1+1) ) :
+      # This is a deleted line
+            print """
+    <tr>
+        <td class="linenum"><font size=2><a name="F1_%d">%d</a></font></td>
+        <td class="removed"><font siz=2>%s</font></td>
+        <td width="16"><font size=2>&nbsp;</font></td>
+        <td class="linenum"><font size=2>&nbsp;</font></td>
+        <td class="removed"><font size=2>&nbsp;</font></td>
+    </tr>
+""" % (nl1+1, nl1+1, str2html(f1_lines[nl1]))
+            nl1 += 1
+        elif ( changed.has_key(nl1+1) ) :
+      # This is a changed (modified) line
+            print """
+    <tr>
+        <td class="linenum"><font size=2><a name="F1_%d">%d</a></font></td>
+        <td class="modified"><font size=2>%s</font></td>
+        <td width="16"><font size=2>&nbsp;</font></td>
+        <td class="linenum"><font size=2>%d</font></td>
+        <td class="modified"><font size=2>%s</font></td>
+    </tr>
+""" % (nl1+1, nl1+1, str2html(f1_lines[nl1]),
+       nl2+1, str2html(f2_lines[nl2]))
+            nl1 += 1
+            nl2 += 1
+      
+        else :
+      # These lines have nothing special
+            if ( not only_changes ) :
+                print """
+    <tr>
+        <td class="linenum"><font size=2>%d</font></td>
+        <td class="normal"><font size=2>%s</font></td>
+        <td width="16"><font size=2>&nbsp;</font></td>
+        <td class="linenum"><font size=2>%d</font></td>
+        <td class="normal"><font size=2>%s</font></td>
+    </tr>
+""" % (nl1+1, str2html(f1_lines[nl1]),
+       nl2+1, str2html(f2_lines[nl2]))
+            nl1 += 1
+            nl2 += 1
+           
+    # And finally, the end of the HTML
+    print """
+</table>
+<hr/>
+<i><br/>
+</i>
+
+
+</body>
+</html>
+"""
+
+
+def binaryprocess(file1,file2) : 
+    #get username 
+    username = commands.getoutput('whoami')
+   
+    # Storing the two reviewed files, to produce the HTML output
+    f1 = open(file1, "r")
+    f1_lines = f1.readlines()
+    f1.close()
+    f2 = open(file2, "r")
+    f2_lines = f2.readlines()
+    f2.close()
+   
+    # Finding some infos about the files
+    f1_stat = os.stat(file1)
+    f2_stat = os.stat(file2)
+
+    # Printing the HTML header, and various known informations
+
+
+    print """
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"
+ "http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+    <title>Code Review Between %s and %s Report</title>""" % (file1, file2)
+    if ( external_css == "" ) :
+        print "    <style>%s</style>" % default_css
+    else :
+        print "    <link rel=\"stylesheet\" href=\"%s\" type=\"text/css\">" % \
+        external_css
+
+    print """
+</head>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3.5>
+    Code Review Report
+    </font>
+    </strong>
+    </td>
+    </tr>
+</table>
+
+<table>
+<i><font size=2>Generated by foxreview %s This review tool helps developer track the change of the given file between different versions (old and new version on ClearCase), and it works properly in Internet Explorer or Firefox or Google Chrome browser,and it can help us to review code.
+Any suggest as to improve this review tool are welcome, Please
+<a href="mailto:<foxreview@googlecode.com> ?subject=suggest for improving this review tool" NAME="">contact me</a>.
+</font></i>
+
+""" % (FOXREVIEW_VERSION_NUMBER)
+    print """
+    
+</table>
+
+
+
+
+<body>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    1.Submit info
+    </font>
+    </strong>
+    </td>
+    </tr>
+    <table class="bordered">
+        <tr>
+        <th><font size=2>Committer</font></th>
+        <th><font size=2>Submit Time</font></th>
+        </tr>
+        <tr>
+        <td><font size=2>%s</font></td>
+        <td><font size=2>%s</font></td>
+        </tr>
+""" % (username,time.strftime('%a %m-%d-%Y %H:%M:%S %Z'))
+    print """
+    </table>
+</table>
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    2.Files reviewed
+    </font>
+    </strong>
+    </td>
+    </tr>
+    <table class="bordered">
+        <tr>
+        <th><font size=2>File Type</font></th>
+        <th><font size=2>File Name</font></th>
+        <th><font size=2>Total Lines</font></th>
+        <th><font size=2>Last Modified</font></th>
+        </tr>
+        <tr>
+        <td>Old</td>
+        <td><font size=1>%s</font></td>
+        <td><font size=2>%d lines</font></td>
+        <td><font size=2>%s</font></td>
+        </tr>
+        <tr>
+        <td>New</td>
+        <td><font size=1>%s</font></td>
+        <td><font size=2>%d lines</font></td>
+        <td><font size=2>%s</font></td>
+        </tr>
+""" % (file1, len(f1_lines),
+      # time.asctime(time.gmtime(f1_stat[stat.ST_MTIME])),
+       time.strftime("%a %m-%d-%Y %H:%M:%S %Z",time.localtime(f1_stat[stat.ST_MTIME])),
+       file2,
+       len(f2_lines),
+       time.strftime("%a %m-%d-%Y %H:%M:%S %Z",time.localtime(f2_stat[stat.ST_MTIME])))
+    print """
+    </table>
+</table>
+
+
+<table>
+    <tr>
+    <td>
+    <strong>
+    <font size=3>
+    3.Review summary
+    </font>
+    </strong>
+    </td>
+    </tr>
+    <tr>
+        <td class="modified"><font size=2>&nbsp There is at least one binary file, foxreview does not deal with binary file ! &nbsp;</font></td>
+    </tr>
+</table>
+
+
+</table>
+<i></font><br/>
+</i>
+
+
+</body>
+</html>
+"""
+
+
+
+if ( __name__ == "__main__" ) :
+    
+     # Processes command-line options
+    cmd_line = string.join(sys.argv)
+   
+    # First, look for "--help"
+    if ( len(sys.argv) < 3 ) :
+        print_usage()
+        sys.exit(1)
+    for ind_opt in range(len(sys.argv)) :
+        if ( sys.argv[ind_opt] == "--help" ) :
+            print_usage()
+            sys.exit(0)
+   
+    external_css = ""
+    ind_css = -1
+    ind_chg = -1
+    only_changes = 0
+    argv = tuple(sys.argv)
+    for ind_opt in range(len(argv)) :
+        if ( argv[ind_opt] == "--style-sheet" ) :
+            ind_css = in_opt
+            external_css = argv[ind_css+1]
+        if ( argv[ind_opt] == "--only-changes" ) :
+            ind_chg = ind_opt
+            only_changes = 1
+
+    argv = list(argv)
+    if ( ind_css >= 0 ) :
+        del argv[ind_css:ind_css+2]
+    if ( ind_chg >= 0 ) :
+        del argv[ind_chg:ind_chg+1]
+
+    # Check if both files exists
+    file1 = argv[-2]
+    file2 = argv[-1]
+   
+    #check file if exist
+    if not os.access(file1, os.F_OK) :
+        print "File %s does not exist or is not readable, aborting." % file1
+        sys.exit(1)
+    if not os.access(file2, os.F_OK) :
+        print "File %s does not exist or is not readable, aborting." % file2
+        sys.exit(1)
+
+    #check file length, if file lengh is 0, then it is NULL file
+    file1_length = os.path.getsize(file1)
+    file2_length = os.path.getsize(file2)
+
+    #check both file are text files
+    if ( checktext(file1,file2) == 1) :
+        textprocess(file1,file2)
+    else:   
+        binaryprocess(file1,file2)
