@@ -144,12 +144,13 @@ function foxreview_config_sample()
 {
     echo "/openproject/test/work.c@@/main/test2/2"
     echo "/openproject/test/work.c@@/main/test2/3"
-
+    echo ""
 
     echo "/openproject/test/fork.c@@/main/test2/3"
     echo "NULL"
 
-    echo"NULL"
+    echo ""
+    echo "NULL"
     echo "/openproject/test/fork.c@@/main/test2/3"
        
 }
@@ -190,9 +191,10 @@ function foxreview_config_guide()
     echo ""
 
     echo "#add one new file"
-    echo"NULL"
+    echo "NULL"
     echo "/openproject/test/fork.c@@/main/test2/3"
 
+    echo ""
     echo "##############################################################################################"
     echo ""
 
@@ -271,7 +273,7 @@ function install_config()
         mkdir -p $FOXREVIEW_CONFIG_DIR  2>/dev/null
         mkdir -p $FOXREVIEW_WORK_DIR    2>/dev/null
 
-        foxreview_readme > $FOXREVIEW_CONFIG_DIR/README.txt 2>/dev/null 
+        foxreview_readme > $FOXREVIEW_CONFIG_DIR/README 2>/dev/null 
         foxreview_config_sample > $FOXREVIEW_CONFIG_DIR/foxreview.config.sample  2>/dev/null
         foxreview_config_guide > $FOXREVIEW_CONFIG_DIR/foxreview.config.guide  2>/dev/null
   
