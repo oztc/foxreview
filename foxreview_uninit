@@ -25,12 +25,12 @@
 
 
 ########################################################################
-##  foxreview version info                                            ##
+##  foxreview version info                                                                                                    ##
 ########################################################################
 FOXREVIEW_VERSION_NUMBER='0.1'
 
 ########################################################################
-## setting path for  installing foxreview config                      ##
+## setting path for  installing foxreview config                                                                     ##
 ########################################################################
 function uninstall()
 {
@@ -79,10 +79,8 @@ function uninstall()
     fi
 }
 
-
-
 ########################################################################
-## foxreview_uninit main process                                      ##
+## foxreview_uninit main process                                                                                        ##
 ########################################################################
 case "$#" in
     0) uninstall 
