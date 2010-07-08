@@ -24,8 +24,6 @@
 # http://www.gnu.org/copyleft/gpl.html
 
 
-
-
 ########################################################################
 ##  foxreview version info                                            ##
 ########################################################################
@@ -40,14 +38,15 @@ function fhelp()
     echo "foxreview $FOXREVIEW_VERSION_NUMBER            "
     echo "                                               "
     echo "Usage: foxreview [-l] [-o] [-n] [-s] [-v] [-h] <output_dir> "
-    echo "[Options]: "
-    echo "          -l: Create HTML files into html dir"
+    echo "[Options]:"
+    echo "         -l: Create HTML files into html dir"
     echo "         -o: Copy Old file to old_src dir"
     echo "         -n: Copy New file to new_src dir"
     echo "         -s: Show CONFIG_DIR and OUTPUT_DIR "
     echo "         -v: Version Info"
     echo "         -h: Help "
     echo "         (option -l,-o,-n can be combined like -lo, -lon, -no)"
+    echo " "
     echo "<output_dir>: Directory name to store output from foxreview command"
     echo "         Naming rule: <ProjectVersionNum_BugNum>  "
     echo "         >ProjectVersionNum:  such as Forxreview0.1"
@@ -151,7 +150,7 @@ function read_line()
     local _NEW_PATH=$PATCH_PATH/$HIX_NUMBER/new_src
     local DIFF=diff2html_binary
     local CONFIG=$CONFIG_DIR/foxreview.config
-    local TMPCONFIGFOREMPTY=$OUTPUT_DIR/tmpconfigforempty
+    local TMPCONFIGFORNULL=$OUTPUT_DIR/tmpconfigfornull
     local TMPCONFIG=$OUTPUT_DIR/tmpconfig
     local RET_VALUE=$?
 
@@ -167,14 +166,14 @@ function read_line()
     #dos2unix format convert
     dos2unix $CONFIG 2>/dev/null
 
-    #remove EMPTY line and blank line
-    sed -e '/^#/ d' $CONFIG  | grep -v ^$ | sed -e 's/EMPTY/ /g' > $TMPCONFIGFOREMPTY 
+    #remove NULL line and blank line
+    sed -e '/^#/ d' $CONFIG  | grep -v ^$ | sed -e 's/NULL/ /g' > $TMPCONFIGFORNULL
 
     #get the string before @@ in the dynamic view version informations
-    awk -F@@ '{ print $1 }' $TMPCONFIGFOREMPTY > $TMPCONFIG
+    awk -F@@ '{ print $1 }' $TMPCONFIGFORNULL > $TMPCONFIG
    
     #Get the number of foxreview config file
-    LENGTH=`awk 'END{print NR}' $TMPCONFIGFOREMPTY`
+    LENGTH=`awk 'END{print NR}' $TMPCONFIGFORNULL`
      
     #check if exit html and src dir
     if [ -d "$_HTML_PATH" ];then
@@ -213,8 +212,8 @@ function read_line()
     do
         #get old file and new file
         j=`expr $i + 1`
-        _OLD_FILE=$(sed -n "$i p" $TMPCONFIGFOREMPTY)
-        _NEW_FILE=$(sed -n "$j p" $TMPCONFIGFOREMPTY)
+        _OLD_FILE=$(sed -n "$i p" $TMPCONFIGFORNULL)
+        _NEW_FILE=$(sed -n "$j p" $TMPCONFIGFORNULL)
 
         #get old file name and new file name
         _OLD_FILENAME=$(sed -n "$i p" $TMPCONFIG | xargs basename 2>/dev/null )
@@ -264,8 +263,8 @@ function read_line()
             fi
         elif [ "$_OLD_FILENAME" = "" ] && [ "$_NEW_FILENAME" != "" ];then
             #creat old null file
-            touch  EMPTY
-            _OLD_FILE=EMPTY
+            touch  NULL
+            _OLD_FILE=NULL
             
             #HTML_MODE            
             if [ $((($OUT_MODE)&($HTML_MODE))) -eq $HTML_MODE ];then
@@ -297,8 +296,8 @@ function read_line()
 
         elif [ "$_OLD_FILENAME" != "" ] && [ "$_NEW_FILENAME" = "" ];then
             #creat old null file
-            touch EMPTY 
-            _NEW_FILE=EMPTY
+            touch NULL
+            _NEW_FILE=NULL
             
             #HTML_MODE            
             if [ $((($OUT_MODE)&($HTML_MODE))) -eq $HTML_MODE ];then
@@ -339,17 +338,17 @@ function read_line()
     done  
     
     #remove the tmp old file 
-    if [ -f "$(pwd)/EMPTY" ];then
-        rm -rf $(pwd)/EMPTY
+    if [ -f "$(pwd)/NULL" ];then
+        rm -rf $(pwd)/NULL
     fi
     
     #remove the tmp new file
-    if [ -f "$(pwd)/empty" ];then
-        rm -rf $(pwd)/empty
+    if [ -f "$(pwd)/null" ];then
+        rm -rf $(pwd)/null
     fi
     
     #remove the tmp file 
-    rm -rf $TMPCONFIGFOREMPTY
+    rm -rf $TMPCONFIGFORNULL
     rm -rf $TMPCONFIG
      
 }
