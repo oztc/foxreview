@@ -293,7 +293,7 @@ def textprocess(file1,file2) :
  "http://www.w3.org/TR/REC-html40/loose.dtd">
 <html>
 <head>
-    <title>Code Review Between %s and %s Report</title>""" % (file1, file2)
+    <title>Foxreview between %s and %s report</title>""" % (file1, file2)
     if ( external_css == "" ) :
         print "    <style>%s</style>" % default_css
     else :
@@ -309,7 +309,7 @@ def textprocess(file1,file2) :
     <td>
     <strong>
     <font size=3.5>
-    Code Review Report
+    Foxreview Report
     </font>
     </strong>
     </td>
@@ -562,7 +562,7 @@ def binaryprocess(file1,file2) :
  "http://www.w3.org/TR/REC-html40/loose.dtd">
 <html>
 <head>
-    <title>Code Review Between %s and %s Report</title>""" % (file1, file2)
+    <title>Foxreview between %s and %s report</title>""" % (file1, file2)
     if ( external_css == "" ) :
         print "    <style>%s</style>" % default_css
     else :
@@ -577,7 +577,7 @@ def binaryprocess(file1,file2) :
     <td>
     <strong>
     <font size=3.5>
-    Code Review Report
+    Foxreview Report
     </font>
     </strong>
     </td>
