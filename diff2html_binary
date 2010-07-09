@@ -24,6 +24,7 @@
 # Boston, MA 02111-1307, USA, or look at the website 
 # http://www.gnu.org/copyleft/gpl.html
 
+import sys
 import os
 import string
 import re
@@ -33,12 +34,6 @@ import os.path
 import commands
 
 # implement simple macro,
-# its usage:
-#          import consttype
-#          consttype.magic = 23
-#          del consttype.magic #remove an named attribute
-#          consttype.__del__() #remove all attributes
-#
 class _consttype:
     class _ConstError(TypeError):
         pass
@@ -53,9 +48,6 @@ class _consttype:
     def __del__(self):
         self.__dict__.clear()
 
- 
-
-import sys
 
 #define tool version
 FOXREVIEW_VERSION_NUMBER='0.1'
